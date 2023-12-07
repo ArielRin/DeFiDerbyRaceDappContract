@@ -1,6 +1,6 @@
 # Horse Racing Smart Contract
 
-This Solidity smart contract, named `HorseRacing`, allows users to participate in horse races by entering with a specified quantity of tickets. The contract is designed to be managed by an owner who has control over creating races, opening and closing them, setting ticket costs, and declaring winners.
+This Solidity smart contract, named `DeFiDerbyBNB`, allows users to participate in horse races by entering with a specified quantity of tickets. The contract is designed to be managed by an owner who has control over creating races, opening and closing them, setting ticket costs, and declaring winners.
 
 ## How to Interact with the Smart Contract
 
