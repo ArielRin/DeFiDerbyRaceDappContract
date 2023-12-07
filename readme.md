@@ -1,5 +1,14 @@
 # DeFi Derby Raceing Dapps Smart Contract
 
+
+## Launch Alpha
+
+https://scan.maxxchain.org/address/0x736fcd8557bd5d2F9bb8b623BE26296C82f02910/
+
+https://bscscan.com/address/0x60a29Aea93b0d1F3849D0Aeb2376B4c612F942ab/
+
+
+
 This Solidity smart contract, named `DeFiDerbyBNB`, allows users to participate in horse races by entering with a specified quantity of tickets. The contract is designed to be managed by an owner who has control over creating races, opening and closing them, setting ticket costs, and declaring winners.
 
 ## How to Interact with the Smart Contract
