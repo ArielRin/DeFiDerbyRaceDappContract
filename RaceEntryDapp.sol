@@ -7,7 +7,7 @@ interface IERC20 {
 }
 
 // Main HorseRacing contract
-contract HorseRacing {
+contract DefiDerbyHorseRaces {
     // Address of the contract owner
     address public owner;
 
