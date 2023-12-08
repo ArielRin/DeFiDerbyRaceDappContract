@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+//teamprize pool wallet 0x6b5CCBBD51493e2689223dBC9580243d7abAC05e
+
 pragma solidity ^0.8.0;
 
 // ERC-20 Interface for token transfers
@@ -6,29 +9,20 @@ interface IERC20 {
     function transfer(address to, uint256 value) external returns (bool);
 }
 
-// Main HorseRacing contract
+// Main DefiDerbyHorseRaces contract
 contract DefiDerbyHorseRaces {
-    // Address of the contract owner
     address public owner;
-
-    // Counter for unique race IDs
+    address public treasuryWallet;  // Treasury wallet address
     uint256 public raceIdCounter;
-
-    // Maximum number of tickets an individual wallet can purchase for a race
     uint256 public maxTicketsPerWallet = 30;
-
-    // Maximum total number of tickets allowed for a single race
-    uint256 public maxTotalTicketsPerRace = 100;
-
-    // Cost of a single ticket in ether
+    uint256 public maxTotalTicketsPerRace = 99;
     uint256 public ticketCost = 0.0123 ether;
 
-    // Event emitted when a horse is entered into a race
     event HorseEntered(uint256 indexed raceId, address indexed horse, uint256 quantity);
+    event WinnersDeclared(uint256 indexed raceId, address[] winners, uint256[] percentages);
 
-    // Struct representing a horse racing event
     struct Race {
-        uint256 pid; // Process ID
+        uint256 pid;
         string description;
         string specialGuestName;
         mapping(address => uint256) ticketsPerHorse;
@@ -37,22 +31,29 @@ contract DefiDerbyHorseRaces {
         bool isOpen;
     }
 
-    // Mapping of race ID to Race struct
     mapping(uint256 => Race) public races;
+    mapping(uint256 => bool) public raceWithdrawn;
 
-    // Modifier to restrict access to the contract owner
     modifier onlyOwner() {
         require(msg.sender == owner, "Only the owner can call this function");
         _;
     }
 
-    // Contract constructor
-    constructor() {
-        owner = msg.sender;
-        raceIdCounter = 1; // Start raceId from 1
+    modifier onlyOwnerOrTreasury() {
+        require(msg.sender == owner || msg.sender == treasuryWallet, "Not authorized");
+        _;
     }
 
-    // Function to create a new race
+    constructor(address _treasuryWallet) {
+        owner = msg.sender;
+        treasuryWallet = _treasuryWallet;
+        raceIdCounter = 1;
+    }
+
+    function setTreasuryWallet(address _newTreasuryWallet) external onlyOwner {
+        treasuryWallet = _newTreasuryWallet;
+    }
+
     function createRace(string calldata _description, string calldata _specialGuestName) external onlyOwner {
         uint256 newRaceId = raceIdCounter;
         races[newRaceId].pid = newRaceId;
@@ -62,7 +63,6 @@ contract DefiDerbyHorseRaces {
         raceIdCounter++;
     }
 
-    // Function to enter a race by purchasing tickets
     function enterRace(uint256 _raceId, uint256 _quantity) external payable {
         require(msg.value == ticketCost * _quantity, "Incorrect amount sent");
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
@@ -73,28 +73,48 @@ contract DefiDerbyHorseRaces {
         races[_raceId].enteredHorses.push(msg.sender);
         races[_raceId].ticketsPerHorse[msg.sender] += _quantity;
 
-        // Emit an event for the entered horse
         emit HorseEntered(_raceId, msg.sender, _quantity);
     }
 
-    // Function to set the cost of a ticket
     function setTicketCost(uint256 _newCost) external onlyOwner {
         ticketCost = _newCost;
     }
 
-    // Function to get the list of entered horses in a race
+    function declareWinnersAndPay(uint256 _raceId, address[] memory _winners, uint256[] memory _percentageDistribution) external onlyOwner {
+        require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
+        require(_winners.length <= 5, "Exceeded maximum winners");
+        require(_winners.length == _percentageDistribution.length, "Mismatch in winners and percentage distribution length");
+
+        races[_raceId].winners = _winners;
+
+        uint256 totalAmount = totalTicketsInRace(_raceId) * ticketCost;
+
+        for (uint256 i = 0; i < _winners.length; i++) {
+            address winner = _winners[i];
+            uint256 percentage = _percentageDistribution[i];
+
+            require(percentage <= 100, "Invalid percentage");
+
+            uint256 amountToSend = (totalAmount * percentage) / 100;
+
+            payable(winner).transfer(amountToSend);
+            totalAmount -= amountToSend;
+        }
+
+        payable(treasuryWallet).transfer(totalAmount);
+
+        emit WinnersDeclared(_raceId, _winners, _percentageDistribution);
+    }
+
     function getEnteredHorses(uint256 _raceId) external view returns (address[] memory) {
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
 
-        // Create a dynamic array to store entered horses
         address[] memory enteredHorses;
 
-        // Iterate through the events to find entered horses for the given race
         for (uint256 i = 0; i < races[_raceId].enteredHorses.length; i++) {
             address horse = races[_raceId].enteredHorses[i];
             uint256 quantity = races[_raceId].ticketsPerHorse[horse];
 
-            // Repeat the horse address based on the quantity
             for (uint256 j = 0; j < quantity; j++) {
                 enteredHorses = appendToAddressArray(enteredHorses, horse);
             }
@@ -103,23 +123,11 @@ contract DefiDerbyHorseRaces {
         return enteredHorses;
     }
 
-    // Helper function to append an address to an array
-    function appendToAddressArray(address[] memory array, address element) internal pure returns (address[] memory) {
-        address[] memory newArray = new address[](array.length + 1);
-        for (uint256 i = 0; i < array.length; i++) {
-            newArray[i] = array[i];
-        }
-        newArray[array.length] = element;
-        return newArray;
-    }
-
-    // Function to get the quantity of tickets entered by a horse in a race
     function getQtyTicketsEnteredInRace(uint256 _raceId, address _horse) external view returns (uint256) {
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
         return races[_raceId].ticketsPerHorse[_horse];
     }
 
-    // Function to get the winners' addresses as a string
     function getWinnersString(uint256 _raceId) external view returns (string memory) {
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
 
@@ -133,7 +141,6 @@ contract DefiDerbyHorseRaces {
         return winnersString;
     }
 
-    // Function to open a closed race
     function openRace(uint256 _raceId) external onlyOwner {
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
         require(!races[_raceId].isOpen, "Race is already open");
@@ -141,7 +148,6 @@ contract DefiDerbyHorseRaces {
         races[_raceId].isOpen = true;
     }
 
-    // Function to close an open race
     function closeRace(uint256 _raceId) external onlyOwner {
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
         require(races[_raceId].isOpen, "Race is already closed");
@@ -149,7 +155,6 @@ contract DefiDerbyHorseRaces {
         races[_raceId].isOpen = false;
     }
 
-    // Function to close all open races
     function closeAllRaces() external onlyOwner {
         for (uint256 i = 1; i <= raceIdCounter; i++) {
             if (races[i].isOpen) {
@@ -158,55 +163,60 @@ contract DefiDerbyHorseRaces {
         }
     }
 
-    // Function to declare winners for a race
-    function declareWinners(uint256 _raceId, address[] memory _winners) external onlyOwner {
+    function getTicketsSold(uint256 _raceId) external view returns (uint256, uint256) {
         require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
-        require(_winners.length <= 5, "Exceeded maximum winners");
-
-        races[_raceId].winners = _winners;
+        uint256 sold = totalTicketsInRace(_raceId);
+        uint256 value = sold * ticketCost;
+        return (sold, value);
     }
 
-    // Function to get the total number of tickets sold for a race
-    function getTicketsSold(uint256 _raceId) external view returns (uint256) {
-       require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
-       return totalTicketsInRace(_raceId);
+    function calculateRaceValue(uint256 _raceId) internal view returns (uint256) {
+        require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
+        return totalTicketsInRace(_raceId) * ticketCost;
     }
 
-    // Internal function to calculate the total number of tickets sold for a race
-    function totalTicketsInRace(uint256 _raceId) internal view returns (uint256) {
-       uint256 totalTickets = 0;
-       address[] memory horses = races[_raceId].enteredHorses;
-
-        for (uint256 i = 0; i < horses.length; i++) {
-           totalTickets += races[_raceId].ticketsPerHorse[horses[i]];
-        }
-
-        return totalTickets;
+    function getRaceValue(uint256 _raceId) external view returns (uint256) {
+        return calculateRaceValue(_raceId);
     }
 
-    // Function to get the list of open races
+    function withdrawFunds(uint256 _raceId) external onlyOwnerOrTreasury {
+    require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
+    require(!raceWithdrawn[_raceId], "Funds already withdrawn for this race");
+
+    uint256 raceValue = calculateRaceValue(_raceId);
+
+    require(raceValue > 0, "No funds available for the specified race");
+
+    payable(treasuryWallet).transfer(raceValue);
+
+    raceWithdrawn[_raceId] = true;
+
+    // Close the race after withdrawing funds
+    races[_raceId].isOpen = false;
+}
+
     function getOpenRaces() external view returns (uint256[] memory) {
-        uint256[] memory openRaceIds;
         uint256 count = 0;
 
         for (uint256 i = 1; i <= raceIdCounter; i++) {
             if (races[i].isOpen) {
-                // Include open race ID in the list
-                openRaceIds[count] = i;
                 count++;
             }
         }
 
-        // Create a new array with the correct length to show open races
-        uint256[] memory result = new uint256[](count);
-        for (uint256 j = 0; j < count; j++) {
-            result[j] = openRaceIds[j];
+        uint256[] memory openRaceIds = new uint256[](count);
+        uint256 index = 0;
+
+        for (uint256 j = 1; j <= raceIdCounter; j++) {
+            if (races[j].isOpen) {
+                openRaceIds[index] = j;
+                index++;
+            }
         }
 
-        return result;
+        return openRaceIds;
     }
 
-    // Function to convert an address to a string
     function addressToString(address account) public pure returns (string memory) {
         bytes32 value = bytes32(uint256(uint160(account)));
         bytes memory alphabet = "0123456789abcdef";
@@ -221,19 +231,60 @@ contract DefiDerbyHorseRaces {
         return string(str);
     }
 
-    // Function to withdraw funds from the contract
-    function withdrawFunds() external onlyOwner {
-        payable(owner).transfer(address(this).balance);
-    }
-
-    // Function to recover lost ERC-20 tokens or native Ether
     function recoverLostTokens(address _tokenAddress, uint256 _amount) external onlyOwner {
         if (_tokenAddress == address(0)) {
-            // Recover native Ether
             payable(owner).transfer(_amount);
         } else {
-            // Recover ERC-20 tokens
             IERC20(_tokenAddress).transfer(owner, _amount);
         }
     }
+
+    function appendToAddressArray(address[] memory array, address element) internal pure returns (address[] memory) {
+        address[] memory newArray = new address[](array.length + 1);
+        for (uint256 i = 0; i < array.length; i++) {
+            newArray[i] = array[i];
+        }
+        newArray[array.length] = element;
+        return newArray;
+    }
+
+    function totalTicketsInRace(uint256 _raceId) internal view returns (uint256) {
+        uint256 totalTickets = 0;
+        address[] memory horses = races[_raceId].enteredHorses;
+
+        for (uint256 i = 0; i < horses.length; i++) {
+            totalTickets += races[_raceId].ticketsPerHorse[horses[i]];
+        }
+
+        return totalTickets;
+    }
+
+    function getFullRaceDetails(uint256 _raceId) external view returns (
+    uint256 pid,
+    string memory description,
+    string memory specialGuestName,
+    address[] memory enteredHorses,
+    address[] memory winners,
+    bool isOpen,
+    bool winnersDeclared,
+    bool fundsWithdrawn,  // New boolean indicating whether funds have been withdrawn
+    uint256 totalTicketsSold,
+    uint256 totalRaceValue
+) {
+    require(_raceId > 0 && _raceId <= raceIdCounter, "Invalid race ID");
+
+    Race storage race = races[_raceId];
+
+    pid = race.pid;
+    description = race.description;
+    specialGuestName = race.specialGuestName;
+    enteredHorses = race.enteredHorses;
+    winners = race.winners;
+    isOpen = race.isOpen;
+    winnersDeclared = race.winners.length > 0;
+    fundsWithdrawn = raceWithdrawn[_raceId];  // Check if funds have been withdrawn
+    totalTicketsSold = totalTicketsInRace(_raceId);
+    totalRaceValue = calculateRaceValue(_raceId);
+}
+
 }
