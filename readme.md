@@ -9,8 +9,27 @@ https://bscscan.com/address/0x60a29Aea93b0d1F3849D0Aeb2376B4c612F942ab/
 
 ## Dapp Repo
 Link to repo with basic user front and with profile creation and points system for leaderboard bragging rights
-Simple to use frontend with opne races easily accessable.
+Simple to use frontend with open races easily accessable to public.
 
+
+### Frontend
+
+Simple frontend to enter open race events
+
+- Current races will be displayed in cards
+- locate the race to enter
+- Select qty ticket in races
+- Enter the race buy clicking "Enter Race" button
+- Confirm TX
+- Await Results
+
+
+TODO
+
+Link contract statistics to leaderboard page
+
+
+### backend
 
 Extensive backend for administration contract function in an easy admin gui
 
