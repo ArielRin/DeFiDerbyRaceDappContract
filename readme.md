@@ -8,6 +8,7 @@ https://scan.maxxchain.org/address/0x736fcd8557bd5d2F9bb8b623BE26296C82f02910/
 https://bscscan.com/address/0x60a29Aea93b0d1F3849D0Aeb2376B4c612F942ab/
 
 ## Dapp Repo
+
 Link to repo with basic user front and with profile creation and points system for leaderboard bragging rights
 Simple to use frontend with open races easily accessable to public.
 
